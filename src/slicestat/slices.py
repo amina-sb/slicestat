@@ -15,12 +15,14 @@ from slicestat.bootstrap import (
     bca_interval,
     jackknife,
     percentile_interval,
+    pooled_replicates,
     stratified_replicates,
 )
 from slicestat.metrics import FloatArray, Metric, get_metric
 
 OVERALL = "overall"
 IntervalMethod = Literal["percentile", "bca"]
+Resampling = Literal["slice", "pooled"]
 
 
 @dataclass(frozen=True)
@@ -112,6 +114,7 @@ def slice_report(
     n_boot: int = 2000,
     alpha: float = 0.05,
     method: IntervalMethod = "percentile",
+    resample: Resampling = "slice",
     seed: int | None = 0,
 ) -> SliceReport:
     """Compute ``metric`` on every slice defined by ``groups`` and on the whole data.
@@ -119,6 +122,9 @@ def slice_report(
     Intervals come from a bootstrap stratified by slice (see :mod:`slicestat.bootstrap`).
     ``method="bca"`` additionally runs a jackknife per slice, which costs ``n`` metric
     evaluations for a slice of ``n`` rows.
+
+    ``resample="pooled"`` uses an ordinary bootstrap of the whole dataset instead, in which slice
+    sizes vary between replicates; it exists as a comparison point and is not recommended.
 
     Returns a :class:`SliceReport` whose last row is the overall population.
     """
@@ -136,7 +142,12 @@ def slice_report(
         raise ValueError("groups must have one label per row")
 
     rng = np.random.default_rng(seed)
-    reps = stratified_replicates(fn, yt, yp, members, n_boot, rng)
+    if resample == "slice":
+        reps = stratified_replicates(fn, yt, yp, members, n_boot, rng)
+    elif resample == "pooled":
+        reps = pooled_replicates(fn, yt, yp, members, n_boot, rng)
+    else:
+        raise ValueError(f"unknown resampling scheme {resample!r}; use slice or pooled")
 
     everyone = np.arange(yt.size, dtype=np.intp)
     rows: list[SliceRow] = []
