@@ -57,8 +57,14 @@ reported as zero.
 ```python
 from slicestat import scan
 
-report = scan(y_true, y_pred, {"region": region, "age": age_band, "device": device},
-              metric="accuracy", max_order=2, n_perm=2000)
+report = scan(
+    y_true,
+    y_pred,
+    {"region": region, "age": age_band, "device": device},
+    metric="accuracy",
+    max_order=2,
+    n_perm=2000,
+)
 print(report.to_markdown())
 ```
 
