@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from slicestat import gap_test, slice_report
+from slicestat import gap_test, scan, slice_report
 from slicestat.metrics import FloatArray
 from slicestat.multitest import Correction, adjust
 from slicestat.slices import IntervalMethod, Resampling
@@ -187,10 +187,45 @@ def contamination_table() -> str:
     return "\n".join(lines)
 
 
+# --- 4. intersections: one family or one per slicing ---------------------------------------
+
+SCAN_TRIALS_PER_BLOCK = 20
+SCAN_ROWS = 900
+
+
+def scan_table() -> str:
+    hits = {"all": [0] * BLOCKS, "per_slicing": [0] * BLOCKS}
+    cells = 0
+    for block in range(BLOCKS):
+        for t in range(SCAN_TRIALS_PER_BLOCK):
+            seed = 11_000_000 + 10_000 * block + t
+            rng = np.random.default_rng(seed)
+            attrs = {k: rng.choice(np.array(["x", "y", "z"]), SCAN_ROWS) for k in ("a", "b", "c")}
+            y, p = labelled(SCAN_ROWS, 0.8, rng)
+            whole = scan(y, p, attrs, max_order=2, n_perm=999, seed=seed)
+            cells = whole.family_size
+            hits["all"][block] += bool(whole.flagged())
+            # Same raw p-values, adjusted within each slicing instead.
+            raw = np.array([r.p_value for r in whole.rows])
+            owners = np.array(whole.slicing_of)
+            per = any(bool(np.any(adjust(raw[owners == o], "holm") <= 0.05)) for o in set(owners))
+            hits["per_slicing"][block] += per
+    per_block = SCAN_TRIALS_PER_BLOCK
+    return "\n".join(
+        [
+            f"| Holm applied | P(any cell flagged), {cells} cells in 6 slicings, none differs |",
+            "|---|---|",
+            f"| within each slicing (baseline) | {rate_cell(hits['per_slicing'], per_block)} |",
+            f"| across all cells (`scan` default) | {rate_cell(hits['all'], per_block)} |",
+        ]
+    )
+
+
 SECTIONS: list[tuple[str, Callable[[], str]]] = [
     ("Interval coverage", coverage_table),
     ("Family-wise error with no real difference", fwer_table),
     ("One deviant slice and slice-vs-rest gaps", contamination_table),
+    ("Intersections: one family or one per slicing", scan_table),
 ]
 
 

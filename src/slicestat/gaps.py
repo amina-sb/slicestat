@@ -20,12 +20,14 @@ without a trace.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from slicestat.bootstrap import IntArray
 from slicestat.metrics import FloatArray, Metric, get_metric
 from slicestat.multitest import Correction, adjust
 from slicestat.slices import _as_float, encode_groups
@@ -119,6 +121,96 @@ def permutation_gap_pvalue(
     return obs, (1 + hits) / (1 + valid)
 
 
+_Partial = tuple[Hashable, int, float, float, float, float, str]
+
+
+class ResolutionWarning(UserWarning):
+    """The permutation count is too small for any test in the family to be flagged."""
+
+
+def warn_if_unflaggable(n_tests: int, n_perm: int, correction: Correction, alpha: float) -> None:
+    """Warn when even the smallest attainable p-value cannot survive the adjustment.
+
+    With ``n_perm`` permutations no p-value is below ``1 / (n_perm + 1)``. Bonferroni, Holm and
+    Benjamini-Hochberg all multiply the smallest p-value by the family size ``m``, so unless
+    ``m / (n_perm + 1) <= alpha`` nothing can be flagged however strong the effect, and an
+    empty list of flagged slices says nothing about the data.
+    """
+    if correction == "none" or n_tests == 0:
+        return
+    floor = n_tests / (n_perm + 1)
+    if floor > alpha:
+        need = math.ceil(n_tests / alpha) - 1
+        warnings.warn(
+            f"with {n_perm} permutations and {n_tests} tests no slice can be flagged at "
+            f"alpha={alpha} after {correction} adjustment (smallest adjusted p-value "
+            f"{min(floor, 1.0):.3g}); use n_perm >= {need}",
+            ResolutionWarning,
+            stacklevel=3,
+        )
+
+
+def check_test_args(alpha: float, n_perm: int, min_size: int) -> None:
+    if not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)")
+    if n_perm < 1:
+        raise ValueError("n_perm must be positive")
+    if min_size < 1:
+        raise ValueError("min_size must be at least 1")
+
+
+def as_pair(y_true: ArrayLike, y_pred: ArrayLike) -> tuple[FloatArray, FloatArray]:
+    yt = _as_float(y_true, "y_true")
+    yp = _as_float(y_pred, "y_pred")
+    if yt.shape != yp.shape:
+        raise ValueError(f"y_true and y_pred differ in length: {yt.size} vs {yp.size}")
+    return yt, yp
+
+
+def raw_gap_rows(
+    fn: Metric,
+    yt: FloatArray,
+    yp: FloatArray,
+    labels: Sequence[Hashable],
+    members: Sequence[IntArray],
+    n_perm: int,
+    min_size: int,
+    rng: np.random.Generator,
+) -> list[_Partial]:
+    """Unadjusted gap, p-value and status for each slice of one slicing."""
+    n = yt.size
+    partial: list[_Partial] = []
+    for label, idx in zip(labels, members, strict=True):
+        mask = np.zeros(n, dtype=bool)
+        mask[idx] = True
+        est = fn(yt[mask], yp[mask])
+        rest = fn(yt[~mask], yp[~mask])
+        if idx.size < min_size or n - idx.size < min_size:
+            partial.append((label, idx.size, est, rest, est - rest, math.nan, "too_small"))
+            continue
+        gap, p = permutation_gap_pvalue(fn, yt, yp, mask, n_perm, rng)
+        status = "tested" if math.isfinite(p) else "undefined"
+        partial.append((label, idx.size, est, rest, gap, p, status))
+    return partial
+
+
+def finish_rows(partial: Sequence[_Partial], p_adj: FloatArray, alpha: float) -> list[GapRow]:
+    return [
+        GapRow(
+            group=label,
+            n=int(size),
+            estimate=est,
+            rest_estimate=rest,
+            gap=gap,
+            p_value=p,
+            p_adjusted=float(pa),
+            flagged=bool(math.isfinite(pa) and pa <= alpha),
+            status=status,
+        )
+        for (label, size, est, rest, gap, p, status), pa in zip(partial, p_adj, strict=True)
+    ]
+
+
 def gap_test(
     y_true: ArrayLike,
     y_pred: ArrayLike,
@@ -135,56 +227,23 @@ def gap_test(
 
     A slice is ``flagged`` when its adjusted p-value is at most ``alpha``.
     """
-    if not 0 < alpha < 1:
-        raise ValueError("alpha must be in (0, 1)")
-    if n_perm < 1:
-        raise ValueError("n_perm must be positive")
-    if min_size < 1:
-        raise ValueError("min_size must be at least 1")
+    check_test_args(alpha, n_perm, min_size)
     name, fn = get_metric(metric)
-    yt = _as_float(y_true, "y_true")
-    yp = _as_float(y_pred, "y_pred")
-    if yt.shape != yp.shape:
-        raise ValueError(f"y_true and y_pred differ in length: {yt.size} vs {yp.size}")
+    yt, yp = as_pair(y_true, y_pred)
     labels, members = encode_groups(groups)
     if sum(m.size for m in members) != yt.size:
         raise ValueError("groups must have one label per row")
 
     rng = np.random.default_rng(seed)
-    n = yt.size
-    partial: list[tuple[Hashable, int, float, float, float, float, str]] = []
-    for label, idx in zip(labels, members, strict=True):
-        mask = np.zeros(n, dtype=bool)
-        mask[idx] = True
-        est = fn(yt[mask], yp[mask])
-        rest = fn(yt[~mask], yp[~mask])
-        if idx.size < min_size or n - idx.size < min_size:
-            partial.append((label, idx.size, est, rest, est - rest, math.nan, "too_small"))
-            continue
-        gap, p = permutation_gap_pvalue(fn, yt, yp, mask, n_perm, rng)
-        status = "tested" if math.isfinite(p) else "undefined"
-        partial.append((label, idx.size, est, rest, gap, p, status))
-
-    p_adj = adjust(np.array([row[5] for row in partial]), correction)
-    rows = [
-        GapRow(
-            group=label,
-            n=int(size),
-            estimate=est,
-            rest_estimate=rest,
-            gap=gap,
-            p_value=p,
-            p_adjusted=float(pa),
-            flagged=bool(math.isfinite(pa) and pa <= alpha),
-            status=status,
-        )
-        for (label, size, est, rest, gap, p, status), pa in zip(partial, p_adj, strict=True)
-    ]
+    partial = raw_gap_rows(fn, yt, yp, labels, members, n_perm, min_size, rng)
+    raw = np.array([row[5] for row in partial])
+    warn_if_unflaggable(int(np.sum(np.isfinite(raw))), n_perm, correction, alpha)
+    p_adj = adjust(raw, correction)
     return GapReport(
         metric=name,
         correction=correction,
         alpha=alpha,
         n_perm=n_perm,
         min_size=min_size,
-        rows=rows,
+        rows=finish_rows(partial, p_adj, alpha),
     )

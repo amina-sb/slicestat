@@ -28,5 +28,5 @@ def test_readme_gap_example_runs() -> None:
     y = rng.integers(0, 2, 300)
     p = np.where(rng.random(300) < 0.85, y, 1 - y)
     assert 0 < slicestat.homogeneity_test(y, p, g, n_perm=50).p_value <= 1
-    table = slicestat.gap_test(y, p, g, metric="accuracy", correction="holm", n_perm=50)
+    table = slicestat.gap_test(y, p, g, metric="accuracy", correction="holm", n_perm=199)
     assert table.to_markdown().startswith("| slice | n | accuracy | rest | gap | p | p (holm) |")

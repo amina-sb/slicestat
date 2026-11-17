@@ -52,6 +52,32 @@ expected share of false flags. Slices smaller than `min_size` (default 10), or w
 are listed as excluded instead of being tested with no power. Permutation p-values are never
 reported as zero.
 
+## Several attributes at once
+
+```python
+from slicestat import scan
+
+report = scan(
+    y_true,
+    y_pred,
+    {"region": region, "age": age_band, "device": device},
+    metric="accuracy",
+    max_order=2,
+    n_perm=2000,
+)
+print(report.to_markdown())
+```
+
+`scan` tests every value of every attribute and every cell of every pair of attributes (cells are
+labelled `region=east & age=old`) and adjusts across all of them as one family. Adjusting within
+each slicing and then reading the slicings together is the common alternative; the evidence
+section shows what it does to the error rate. Cells smaller than `min_size` (default 20) are
+excluded.
+
+`gap_test` and `scan` raise `ResolutionWarning` when the permutation count is too small for any
+slice to survive the adjustment: no permutation p-value is below `1 / (n_perm + 1)`, so 36 tests
+at α = 0.05 need at least 719 permutations before anything can be flagged.
+
 ## Command line
 
 ```bash
@@ -90,12 +116,14 @@ performance varies at all.
 Every number in this section is printed by [`scripts/evidence.py`](scripts/evidence.py) from
 simulated data whose true values are known, and CI fails if this section and the script's output
 differ. Rates carry a 95% Wilson interval over the simulated datasets and the range across five
-independent seed blocks. Intervals use 400 bootstrap resamples and tests 199 permutations, to keep
-the script to a few minutes; the defaults in the library are 2,000 of each.
+independent seed blocks. Intervals use 400 bootstrap resamples and tests 199 permutations (999 for
+the intersection table, whose 36 tests need at least 719), to keep the script to a few minutes;
+the defaults in the library are 2,000 of each.
 
 The coverage simulation puts the slice of interest next to two 200-row slices; the true accuracy
 is 0.8 everywhere, and 400 datasets are drawn per row. The family-wise error simulation uses eight
-100-row slices with identical true accuracy, 300 datasets.
+100-row slices with identical true accuracy, 300 datasets. The intersection simulation draws three
+attributes with three values each for 900 rows, again with no real difference, 100 datasets.
 
 <!-- evidence:start -->
 
@@ -130,6 +158,13 @@ is 0.8 everywhere, and 400 datasets are drawn per row. The family-wise error sim
 | one slice at 60% | any healthy slice flagged: 0.967 (0.886–0.991) · blocks 0.917–1.000 |
 | one slice at 60% | healthy slices flagged per dataset, of 4: 2.83 · blocks 2.42–3.33 |
 | nothing (deviant slice removed) | any slice flagged: 0.067 (0.026–0.159) · blocks 0.000–0.167 |
+
+#### Intersections: one family or one per slicing
+
+| Holm applied | P(any cell flagged), 36 cells in 6 slicings, none differs |
+|---|---|
+| within each slicing (baseline) | 0.130 (0.078–0.210) · blocks 0.050–0.200 |
+| across all cells (`scan` default) | 0.020 (0.006–0.070) · blocks 0.000–0.050 |
 
 <!-- evidence:end -->
 
