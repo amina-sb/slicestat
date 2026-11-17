@@ -20,5 +20,6 @@
 
 ## Phase 4 — intersectional slices
 - [ ] A slice-localisation procedure that does not inherit the contamination of slice-vs-rest gaps, with its error control shown by simulation
-- [ ] Slices defined by combinations of attributes, with the multiplicity they imply
+- [x] Slices defined by combinations of attributes, with the multiplicity they imply
+- [x] A warning when the permutation count is too small for anything to be flagged
 - [ ] Documentation site
