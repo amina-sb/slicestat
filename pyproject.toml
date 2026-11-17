@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slicestat"
+version = "0.1.0"
+description = "Subgroup performance metrics for ML models: per-slice estimates with bootstrap intervals, gap tests, and multiple-comparison control."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "amina" }]
+keywords = ["machine learning", "evaluation", "subgroup analysis", "bootstrap", "multiple comparisons"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "hypothesis>=6",
+    "ruff>=0.4",
+    "mypy>=1.8",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "statsmodels>=0.14",
+]
+
+[project.scripts]
+slicestat = "slicestat.cli:main"
+
+[project.urls]
+Repository = "https://github.com/amina-sb/slicestat"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+slicestat = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "sklearn.*", "statsmodels.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
