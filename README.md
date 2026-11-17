@@ -32,6 +32,26 @@ metric was undefined.
 Metrics: `accuracy`, `error_rate`, `tpr`, `fpr`, `precision`, `f1` (on 0/1 predictions) and
 `roc_auc`, `brier` (on scores). Any callable `f(y_true, y_pred) -> float` also works.
 
+## Which slices differ?
+
+```python
+from slicestat import gap_test, homogeneity_test
+
+print(homogeneity_test(y_true, y_pred, groups, metric="accuracy").p_value)
+print(gap_test(y_true, y_pred, groups, metric="accuracy", correction="holm").to_markdown())
+```
+
+`homogeneity_test` is one permutation test of the null that every slice has the same metric. Its
+statistic is the size-weighted dispersion of slice metrics around the overall metric (the ANOVA
+between-group sum of squares when the metric is a mean).
+
+`gap_test` tests each slice against the rest of the data by reshuffling slice membership with the
+slice size fixed, then adjusts the p-values for the number of slices: `holm` (default) or
+`bonferroni` control the chance of flagging any slice when none differs, `bh` controls the
+expected share of false flags. Slices smaller than `min_size` (default 10), or whose complement is,
+are listed as excluded instead of being tested with no power. Permutation p-values are never
+reported as zero.
+
 ## Decisions that matter
 
 **The bootstrap is stratified by slice.** Each replicate redraws every slice from itself, so a
@@ -47,5 +67,13 @@ small slice happened to contain a positive describes a conditional quantity.
 **BCa uses the mid-rank bias correction.** For metrics with a discrete bootstrap distribution —
 accuracy on a 25-row slice takes only 26 values — the usual `P(θ* < θ̂)` correction is biased by
 the mass sitting exactly at `θ̂`; counting ties as one half fixes that.
+
+**"Differs from the rest" is not "is anomalous".** The rest of a healthy slice contains whichever
+slice is deviant. In a test with five slices of about 240 rows, four of them 90% accurate and one
+60% accurate, the healthy slices beat their rest by several points and on average 3.2 of the 4 are
+flagged (40 simulated datasets, Holm at 5%); with the deviant slice removed, the family-wise rate
+returns to about 5%. Read a positive gap next to a large negative one accordingly, and use
+`homogeneity_test` when the question is whether performance varies at all. The test for this is
+`tests/test_gaps.py::test_contamination_is_systematic_not_a_seed_artifact`.
 
 See [ROADMAP.md](ROADMAP.md) for what is planned.
