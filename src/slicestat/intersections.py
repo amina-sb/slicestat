@@ -28,6 +28,7 @@ from slicestat.gaps import (
     check_test_args,
     finish_rows,
     raw_gap_rows,
+    warn_if_unflaggable,
 )
 from slicestat.metrics import FloatArray, Metric, get_metric
 from slicestat.multitest import Correction, adjust
@@ -132,6 +133,8 @@ def scan(
         per_slicing_p.append(adjust(np.array([r[5] for r in rows]), correction))
 
     raw = np.array([r[5] for r in partial])
+    if family == "all":
+        warn_if_unflaggable(int(np.sum(np.isfinite(raw))), n_perm, correction, alpha)
     p_adj = adjust(raw, correction) if family == "all" else np.concatenate(per_slicing_p)
     return ScanReport(
         metric=name,

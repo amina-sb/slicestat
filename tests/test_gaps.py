@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from slicestat.gaps import gap_test, permutation_gap_pvalue
+from slicestat.gaps import ResolutionWarning, gap_test, permutation_gap_pvalue
 from slicestat.metrics import accuracy
 
 
@@ -47,6 +47,7 @@ def test_pvalue_is_never_zero() -> None:
     assert pv == pytest.approx(1 / 100)
 
 
+@pytest.mark.filterwarnings("ignore::slicestat.gaps.ResolutionWarning")
 def test_identical_slices_give_p_of_one() -> None:
     # Every row is identical, so every permuted gap equals the observed gap of zero. The tie
     # tolerance must count all of them.
@@ -116,6 +117,7 @@ def test_contamination_is_systematic_not_a_seed_artifact() -> None:
     assert any_flag_without_e <= 6
 
 
+@pytest.mark.filterwarnings("ignore::slicestat.gaps.ResolutionWarning")
 def test_small_slices_are_excluded_explicitly() -> None:
     rng = np.random.default_rng(2)
     g = np.r_[np.repeat("big", 100), np.repeat("tiny", 4), np.repeat("mid", 50)]
@@ -159,3 +161,27 @@ def test_reproducible_with_seed() -> None:
 def test_bad_arguments(kwargs: dict[str, float], match: str) -> None:
     with pytest.raises(ValueError, match=match):
         gap_test([0, 1], [0, 1], [0, 1], **kwargs)  # type: ignore[arg-type]
+
+
+def test_warns_when_no_slice_could_ever_be_flagged() -> None:
+    """36 tests at alpha 0.05 need p <= 0.0014 under Bonferroni, but 199 permutations cannot
+    produce a p-value below 0.005, so nothing can be flagged whatever the data say."""
+    from slicestat.gaps import ResolutionWarning, warn_if_unflaggable
+
+    with pytest.warns(ResolutionWarning, match="n_perm >= 719"):
+        warn_if_unflaggable(36, 199, "holm", 0.05)
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        warn_if_unflaggable(36, 999, "holm", 0.05)
+        warn_if_unflaggable(36, 199, "none", 0.05)
+        warn_if_unflaggable(8, 199, "bonferroni", 0.05)
+
+
+def test_gap_test_raises_the_resolution_warning() -> None:
+    rng = np.random.default_rng(0)
+    g = np.repeat(np.arange(12), 30)
+    y = rng.integers(0, 2, g.size).astype(float)
+    with pytest.warns(ResolutionWarning):
+        gap_test(y, y, g, n_perm=99)

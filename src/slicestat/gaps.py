@@ -20,6 +20,7 @@ without a trace.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
@@ -123,6 +124,32 @@ def permutation_gap_pvalue(
 _Partial = tuple[Hashable, int, float, float, float, float, str]
 
 
+class ResolutionWarning(UserWarning):
+    """The permutation count is too small for any test in the family to be flagged."""
+
+
+def warn_if_unflaggable(n_tests: int, n_perm: int, correction: Correction, alpha: float) -> None:
+    """Warn when even the smallest attainable p-value cannot survive the adjustment.
+
+    With ``n_perm`` permutations no p-value is below ``1 / (n_perm + 1)``. Bonferroni, Holm and
+    Benjamini-Hochberg all multiply the smallest p-value by the family size ``m``, so unless
+    ``m / (n_perm + 1) <= alpha`` nothing can be flagged however strong the effect, and an
+    empty list of flagged slices says nothing about the data.
+    """
+    if correction == "none" or n_tests == 0:
+        return
+    floor = n_tests / (n_perm + 1)
+    if floor > alpha:
+        need = math.ceil(n_tests / alpha) - 1
+        warnings.warn(
+            f"with {n_perm} permutations and {n_tests} tests no slice can be flagged at "
+            f"alpha={alpha} after {correction} adjustment (smallest adjusted p-value "
+            f"{min(floor, 1.0):.3g}); use n_perm >= {need}",
+            ResolutionWarning,
+            stacklevel=3,
+        )
+
+
 def check_test_args(alpha: float, n_perm: int, min_size: int) -> None:
     if not 0 < alpha < 1:
         raise ValueError("alpha must be in (0, 1)")
@@ -209,7 +236,9 @@ def gap_test(
 
     rng = np.random.default_rng(seed)
     partial = raw_gap_rows(fn, yt, yp, labels, members, n_perm, min_size, rng)
-    p_adj = adjust(np.array([row[5] for row in partial]), correction)
+    raw = np.array([row[5] for row in partial])
+    warn_if_unflaggable(int(np.sum(np.isfinite(raw))), n_perm, correction, alpha)
+    p_adj = adjust(raw, correction)
     return GapReport(
         metric=name,
         correction=correction,

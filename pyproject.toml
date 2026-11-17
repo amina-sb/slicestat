@@ -61,3 +61,5 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 addopts = "-m 'not slow'"
 markers = ["slow: full evidence simulation; run with -m slow"]
+# A test that means to use too few permutations must say so with its own filter.
+filterwarnings = ["error::slicestat.gaps.ResolutionWarning"]

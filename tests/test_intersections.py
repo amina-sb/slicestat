@@ -41,6 +41,7 @@ def test_order_one_scan_matches_gap_test() -> None:
     assert s.rows == g.rows
 
 
+@pytest.mark.filterwarnings("ignore::slicestat.gaps.ResolutionWarning")
 def test_one_family_across_slicings() -> None:
     y, p, region, age = _data(1)
     s = scan(y, p, {"region": region, "age": age}, n_perm=99, seed=0)
@@ -52,6 +53,7 @@ def test_one_family_across_slicings() -> None:
     assert s.family_size == 15
 
 
+@pytest.mark.filterwarnings("ignore::slicestat.gaps.ResolutionWarning")
 def test_per_slicing_adjusts_within_each_slicing_only() -> None:
     y, p, region, age = _data(2)
     s = scan(y, p, {"region": region, "age": age}, n_perm=99, family="per_slicing", seed=0)
@@ -74,6 +76,7 @@ def test_planted_cell_is_found() -> None:
     assert worst.flagged
 
 
+@pytest.mark.filterwarnings("ignore::slicestat.gaps.ResolutionWarning")
 def test_small_cells_are_excluded() -> None:
     y, p, region, age = _data(4, n=150)
     s = scan(y, p, {"region": region, "age": age}, n_perm=20, min_size=20, seed=0)
