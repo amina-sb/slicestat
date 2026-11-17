@@ -17,7 +17,7 @@ import numpy as np
 
 from slicestat.gaps import gap_test
 from slicestat.homogeneity import homogeneity_test
-from slicestat.metrics import METRICS
+from slicestat.metrics import METRICS, FloatArray
 from slicestat.multitest import Correction
 from slicestat.slices import IntervalMethod, slice_report
 
@@ -35,7 +35,7 @@ def read_columns(path: Path, names: list[str]) -> dict[str, list[str]]:
     return cols
 
 
-def _numeric(values: list[str], name: str) -> np.ndarray:
+def _numeric(values: list[str], name: str) -> FloatArray:
     try:
         return np.array([float(v) for v in values], dtype=np.float64)
     except ValueError as exc:

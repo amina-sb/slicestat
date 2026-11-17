@@ -18,8 +18,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 
 from slicestat import gap_test, slice_report
+from slicestat.metrics import FloatArray
 from slicestat.multitest import Correction, adjust
 from slicestat.slices import IntervalMethod, Resampling
 
@@ -49,7 +51,7 @@ def rate_cell(hits: list[int], per_block: int) -> str:
     return f"{k / n:.3f} ({lo:.3f}–{hi:.3f}) · blocks {min(rates):.3f}–{max(rates):.3f}"
 
 
-def labelled(n: int, accuracy: float, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+def labelled(n: int, accuracy: float, rng: np.random.Generator) -> tuple[FloatArray, FloatArray]:
     """Balanced 0/1 labels and predictions that are correct with probability ``accuracy``."""
     y = rng.integers(0, 2, n).astype(np.float64)
     p = np.where(rng.random(n) < accuracy, y, 1 - y)
@@ -139,7 +141,9 @@ def fwer_table() -> str:
 CONTAM_TRIALS_PER_BLOCK = 12
 
 
-def _planted(rng: np.random.Generator, with_bad: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _planted(
+    rng: np.random.Generator, with_bad: bool
+) -> tuple[FloatArray, FloatArray, NDArray[np.str_]]:
     n = 1200
     g = rng.choice(np.array(list("abcde")), n)
     acc = np.where(g == "e", 0.6, 0.9)
