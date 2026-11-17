@@ -50,6 +50,30 @@ def test_replicates_only_draw_from_their_own_slice() -> None:
     np.testing.assert_array_equal(reps[:, :3], np.broadcast_to([0.0, 1.0, 2.0], (100, 3)))
 
 
+def test_pooled_replicates_vary_slice_sizes_and_keep_total() -> None:
+    from slicestat.bootstrap import pooled_replicates
+
+    rng = np.random.default_rng(0)
+    groups = np.array(["a"] * 5 + ["b"] * 45)
+    _, members = encode_groups(groups)
+    y = np.zeros(groups.size)
+    reps = pooled_replicates(_size, y, y, members, 400, rng)
+    np.testing.assert_array_equal(reps[:, 0] + reps[:, 1], 50)
+    np.testing.assert_array_equal(reps[:, 2], 50)
+    assert reps[:, 0].std() > 1.0  # the small slice's size moves around
+    assert reps[:, 0].mean() == pytest.approx(5, abs=0.3)
+
+
+def test_pooled_resampling_runs_through_report() -> None:
+    rng = np.random.default_rng(1)
+    y = rng.integers(0, 2, 120).astype(float)
+    g = np.repeat(["a", "b", "c"], 40)
+    rep = slice_report(y, y, g, n_boot=100, resample="pooled")
+    assert [r.estimate for r in rep.rows] == [1.0, 1.0, 1.0, 1.0]
+    with pytest.raises(ValueError, match="resampling scheme"):
+        slice_report(y, y, g, n_boot=10, resample="block")  # type: ignore[arg-type]
+
+
 def test_encode_groups_sorts_natively_and_keeps_labels() -> None:
     labels, members = encode_groups([10, 2, 2, 10, 3])
     assert labels == [2, 3, 10]

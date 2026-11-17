@@ -47,6 +47,36 @@ def stratified_replicates(
     return out
 
 
+def pooled_replicates(
+    metric: Metric,
+    y_true: FloatArray,
+    y_pred: FloatArray,
+    members: list[IntArray],
+    n_boot: int,
+    rng: np.random.Generator,
+) -> FloatArray:
+    """Replicates from an ordinary bootstrap of the whole dataset, sliced afterwards.
+
+    Slice sizes vary between replicates, and a slice can be absent from one (its metric is then
+    undefined for that replicate). Kept as the comparison point for the stratified bootstrap.
+    Same output layout as :func:`stratified_replicates`.
+    """
+    n = y_true.size
+    n_groups = len(members)
+    codes = np.empty(n, dtype=np.intp)
+    for g, idx in enumerate(members):
+        codes[idx] = g
+    out = np.empty((n_boot, n_groups + 1), dtype=np.float64)
+    for b in range(n_boot):
+        d = rng.integers(0, n, n)
+        cd = codes[d]
+        for g in range(n_groups):
+            dg = d[cd == g]
+            out[b, g] = metric(y_true[dg], y_pred[dg])
+        out[b, n_groups] = metric(y_true[d], y_pred[d])
+    return out
+
+
 def jackknife(metric: Metric, y_true: FloatArray, y_pred: FloatArray) -> FloatArray:
     """Leave-one-out values of ``metric``. Costs ``n`` metric evaluations."""
     n = y_true.size

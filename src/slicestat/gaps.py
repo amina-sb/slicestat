@@ -24,7 +24,7 @@ from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from slicestat.metrics import FloatArray, Metric, get_metric
 from slicestat.multitest import Correction, adjust
@@ -89,7 +89,7 @@ def permutation_gap_pvalue(
     metric: Metric,
     y_true: FloatArray,
     y_pred: FloatArray,
-    in_slice: np.ndarray,
+    in_slice: NDArray[np.bool_],
     n_perm: int,
     rng: np.random.Generator,
 ) -> tuple[float, float]:

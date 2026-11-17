@@ -39,7 +39,7 @@ class HomogeneityResult:
 
 
 def dispersion(
-    metric: Metric, y_true: FloatArray, y_pred: FloatArray, members: list[IntArray]
+    metric: Metric, y_true: FloatArray, y_pred: FloatArray, members: Sequence[IntArray]
 ) -> float:
     """Size-weighted dispersion of slice metrics around the overall metric.
 
