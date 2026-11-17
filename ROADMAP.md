@@ -13,10 +13,10 @@
 - [x] Global homogeneity test whose reference is not contaminated by a deviant slice
 
 ## Phase 3 — evidence and tooling
-- [ ] Simulation evidence: interval coverage, family-wise error under the null, power under a planted gap
-- [ ] Command-line interface over a CSV
-- [ ] CI running tests, lint, type check and the evidence check
-- [ ] Release workflow for PyPI trusted publishing
+- [x] Simulation evidence: interval coverage, family-wise error under the null, power under a planted gap
+- [x] Command-line interface over a CSV
+- [x] CI running tests, lint, type check and the evidence check
+- [x] Release workflow for PyPI trusted publishing
 
 ## Phase 4 — intersectional slices
 - [ ] A slice-localisation procedure that does not inherit the contamination of slice-vs-rest gaps, with its error control shown by simulation
